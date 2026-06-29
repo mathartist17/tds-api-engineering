@@ -130,6 +130,10 @@ client_requests = defaultdict(deque)
 async def rate_limit_middleware(request: Request, call_next):
     """Rate limiting: 17 requests per 10 seconds per client"""
     
+    # Skip rate limiting for CORS preflight requests
+    if request.method == "OPTIONS":
+        return await call_next(request)
+    
     client_id = request.headers.get("X-Client-Id")
     
     # Skip if no client ID
