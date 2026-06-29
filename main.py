@@ -1,5 +1,7 @@
 import time
 import base64
+import asyncio
+import httpx
 from datetime import datetime
 from typing import Optional
 from fastapi import FastAPI, Header, Query, HTTPException, Request
@@ -25,7 +27,7 @@ app.add_middleware(
 # Assigned values
 TOTAL_ORDERS = 47
 RATE_LIMIT_REQUESTS = 17
-RATE_LIMIT_WINDOW_SECONDS = 25
+RATE_LIMIT_WINDOW_SECONDS = 10
 
 # ============================================================================
 # PART 1: IDEMPOTENT ORDER CREATION
@@ -187,3 +189,15 @@ def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=10000, workers=1)
+
+@app.on_event("startup")
+async def keep_alive():
+    async def ping():
+        while True:
+            await asyncio.sleep(30)
+            try:
+                async with httpx.AsyncClient() as client:
+                    await client.get("https://tds-api-engineering.onrender.com/health")
+            except:
+                pass
+    asyncio.create_task(ping())
