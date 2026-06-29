@@ -25,9 +25,9 @@ app.add_middleware(
 )
 
 # Assigned values
-TOTAL_ORDERS = 47
+TOTAL_ORDERS = 42
 RATE_LIMIT_REQUESTS = 17
-RATE_LIMIT_WINDOW_SECONDS = 10
+RATE_LIMIT_WINDOW_SECONDS = 60
 
 # ============================================================================
 # PART 1: IDEMPOTENT ORDER CREATION
