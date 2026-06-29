@@ -200,7 +200,7 @@ async def rate_limit_middleware(request: Request, call_next):
             status_code=429,
             content={"detail": "Rate limit exceeded"},
             headers={
-                "Retry-After": str(max(1, retry_after)),
+                "Retry-After": "10",
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Headers": "*",
                 "Access-Control-Allow-Methods": "*",
