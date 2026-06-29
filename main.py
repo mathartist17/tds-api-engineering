@@ -183,3 +183,7 @@ async def rate_limit_middleware(request: Request, call_next):
 def health_check():
     """Simple health check"""
     return {"status": "ok"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=10000, workers=1)
