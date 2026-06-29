@@ -19,7 +19,7 @@ app = FastAPI(title="Orders API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*", "X-Client-Id"],  # Explicitly allow custom header
 )
