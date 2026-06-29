@@ -205,6 +205,7 @@ async def rate_limit_middleware(request: Request, call_next):
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Headers": "*",
                 "Access-Control-Allow-Methods": "*",
+                "Access-Control-Expose-Headers": "Retry-After"
             }
         )
 
