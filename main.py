@@ -19,7 +19,7 @@ app.add_middleware(
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*", "X-Client-Id"],  # Explicitly allow custom header
 )
 
 # Assigned values
