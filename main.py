@@ -22,6 +22,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*", "X-Client-Id"],  # Explicitly allow custom header
+    expose_headers=["Retry-After", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Window"],
 )
 
 # Assigned values
