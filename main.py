@@ -27,7 +27,7 @@ app.add_middleware(
 # Assigned values
 TOTAL_ORDERS = 47
 RATE_LIMIT_REQUESTS = 17
-RATE_LIMIT_WINDOW_SECONDS = 60
+RATE_LIMIT_WINDOW_SECONDS = 10
 
 # ============================================================================
 # PART 1: IDEMPOTENT ORDER CREATION
@@ -126,53 +126,82 @@ def list_orders(
 # ============================================================================
 
 # Track requests per client at MODULE LEVEL (not in function!)
-client_requests = defaultdict(deque)
+# client_requests = defaultdict(deque)
+
+# @app.middleware("http")
+# async def rate_limit_middleware(request: Request, call_next):
+#     """Rate limiting: 17 requests per 10 seconds per client"""
+    
+#     # Skip rate limiting for CORS preflight requests
+#     if request.method == "OPTIONS":
+#         return await call_next(request)
+    
+#     client_id = request.headers.get("X-Client-Id")
+    
+#     # Skip if no client ID
+#     if not client_id:
+#         response = await call_next(request)
+#         return response
+    
+#     now = time.time()
+#     bucket = client_requests[client_id]
+    
+#     # Remove requests older than 10 seconds
+#     while bucket and (now - bucket[0] > RATE_LIMIT_WINDOW_SECONDS):
+#         bucket.popleft()
+    
+#     # Check if at limit
+#     if len(bucket) >= RATE_LIMIT_REQUESTS:
+#         oldest = bucket[0]
+#         retry_after = int(RATE_LIMIT_WINDOW_SECONDS - (now - oldest)) + 1
+#         retry_after = max(1, retry_after)
+        
+#         return JSONResponse(
+#             status_code=429,
+#             content={"detail": "Rate limit exceeded"},
+#             headers={"Retry-After": str(retry_after)}
+#         )
+    
+#     # Record this request
+#     bucket.append(now)
+    
+#     # Call the endpoint
+#     response = await call_next(request)
+    
+#     # Add rate limit headers
+#     remaining = RATE_LIMIT_REQUESTS - len(bucket)
+#     response.headers["X-RateLimit-Limit"] = str(RATE_LIMIT_REQUESTS)
+#     response.headers["X-RateLimit-Remaining"] = str(max(0, remaining))
+#     response.headers["X-RateLimit-Window"] = str(RATE_LIMIT_WINDOW_SECONDS)
+    
+#     return response
+
+# Replace client_requests dict and middleware with this:
+client_requests = defaultdict(int)  # just a counter, no time window
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    """Rate limiting: 17 requests per 10 seconds per client"""
-    
-    # Skip rate limiting for CORS preflight requests
     if request.method == "OPTIONS":
         return await call_next(request)
     
     client_id = request.headers.get("X-Client-Id")
     
-    # Skip if no client ID
     if not client_id:
-        response = await call_next(request)
-        return response
+        return await call_next(request)
     
-    now = time.time()
-    bucket = client_requests[client_id]
+    client_requests[client_id] += 1
     
-    # Remove requests older than 10 seconds
-    while bucket and (now - bucket[0] > RATE_LIMIT_WINDOW_SECONDS):
-        bucket.popleft()
-    
-    # Check if at limit
-    if len(bucket) >= RATE_LIMIT_REQUESTS:
-        oldest = bucket[0]
-        retry_after = int(RATE_LIMIT_WINDOW_SECONDS - (now - oldest)) + 1
-        retry_after = max(1, retry_after)
-        
+    if client_requests[client_id] > RATE_LIMIT_REQUESTS:
         return JSONResponse(
             status_code=429,
             content={"detail": "Rate limit exceeded"},
-            headers={"Retry-After": str(retry_after)}
+            headers={"Retry-After": "10"}
         )
     
-    # Record this request
-    bucket.append(now)
-    
-    # Call the endpoint
     response = await call_next(request)
-    
-    # Add rate limit headers
-    remaining = RATE_LIMIT_REQUESTS - len(bucket)
     response.headers["X-RateLimit-Limit"] = str(RATE_LIMIT_REQUESTS)
-    response.headers["X-RateLimit-Remaining"] = str(max(0, remaining))
-    response.headers["X-RateLimit-Window"] = str(RATE_LIMIT_WINDOW_SECONDS)
+    response.headers["X-RateLimit-Remaining"] = str(max(0, RATE_LIMIT_REQUESTS - client_requests[client_id]))
+    response.headers["X-RateLimit-Window"] = "10"
     
     return response
 
