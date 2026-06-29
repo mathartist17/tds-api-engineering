@@ -176,33 +176,37 @@ def list_orders(
     
 #     return response
 
-# Replace client_requests dict and middleware with this:
-client_requests = defaultdict(int)  # just a counter, no time window
+client_requests = defaultdict(deque)  # back to deque
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
     if request.method == "OPTIONS":
         return await call_next(request)
-    
+
     client_id = request.headers.get("X-Client-Id")
-    
     if not client_id:
         return await call_next(request)
-    
-    client_requests[client_id] += 1
-    
-    if client_requests[client_id] > RATE_LIMIT_REQUESTS:
+
+    now = time.time()
+    bucket = client_requests[client_id]
+
+    # Clear requests older than 30 seconds
+    while bucket and (now - bucket[0] > 30):
+        bucket.popleft()
+
+    if len(bucket) >= RATE_LIMIT_REQUESTS:
+        retry_after = int(30 - (now - bucket[0])) + 1
         return JSONResponse(
             status_code=429,
             content={"detail": "Rate limit exceeded"},
-            headers={"Retry-After": "10"}
+            headers={"Retry-After": str(max(1, retry_after))}
         )
-    
+
+    bucket.append(now)
     response = await call_next(request)
     response.headers["X-RateLimit-Limit"] = str(RATE_LIMIT_REQUESTS)
-    response.headers["X-RateLimit-Remaining"] = str(max(0, RATE_LIMIT_REQUESTS - client_requests[client_id]))
+    response.headers["X-RateLimit-Remaining"] = str(max(0, RATE_LIMIT_REQUESTS - len(bucket)))
     response.headers["X-RateLimit-Window"] = "10"
-    
     return response
 
 
