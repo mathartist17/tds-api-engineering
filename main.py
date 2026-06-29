@@ -151,40 +151,60 @@ async def rate_limit_middleware(request, call_next):
     Rate limiting middleware that runs on EVERY request.
     
     1. Read X-Client-Id header
-    2. Check if this client has made > 17 requests in the last 10 seconds
-    3. If so, return HTTP 429 with Retry-After header
-    4. Otherwise, let the request through
+    2. Check if this client has made >= 17 requests in the last 10 seconds
+    3. If 17+ requests exist, block (HTTP 429)
+    4. Otherwise, record request and allow through
     """
     
     # Get client ID from header
-    client_id = request.headers.get("X-Client-Id", "unknown")
+    client_id = request.headers.get("X-Client-Id")
+    
+    # If no client ID provided, skip rate limiting
+    if not client_id:
+        response = await call_next(request)
+        return response
+    
     current_time = time.time()
     
     # Remove old requests (older than 10 seconds)
-    while client_requests[client_id]:
-        if current_time - client_requests[client_id][0] > RATE_LIMIT_WINDOW_SECONDS:
-            client_requests[client_id].popleft()
-        else:
-            break
+    # ⚠️ IMPORTANT: Do this BEFORE checking the limit
+    while client_requests[client_id] and (current_time - client_requests[client_id][0] > RATE_LIMIT_WINDOW_SECONDS):
+        client_requests[client_id].popleft()
     
-    # Check if client has exceeded the limit
-    if len(client_requests[client_id]) >= RATE_LIMIT_REQUESTS:
-        # Calculate when the oldest request expires
+    # Count valid requests (within 10-second window)
+    request_count = len(client_requests[client_id])
+    
+    # Block if already at or exceeding limit
+    if request_count >= RATE_LIMIT_REQUESTS:
+        # Calculate Retry-After: how long until oldest request expires
         oldest_request_time = client_requests[client_id][0]
-        retry_after = RATE_LIMIT_WINDOW_SECONDS - (current_time - oldest_request_time)
-        retry_after = max(1, int(retry_after) + 1)
+        time_since_oldest = current_time - oldest_request_time
+        retry_after_seconds = RATE_LIMIT_WINDOW_SECONDS - time_since_oldest
+        retry_after_seconds = max(1, int(retry_after_seconds) + 1)
         
         return JSONResponse(
             status_code=429,
-            content={"detail": "Rate limit exceeded"},
-            headers={"Retry-After": str(retry_after)}
+            content={
+                "detail": "Rate limit exceeded",
+                "limit": RATE_LIMIT_REQUESTS,
+                "window_seconds": RATE_LIMIT_WINDOW_SECONDS,
+                "current_requests": request_count
+            },
+            headers={"Retry-After": str(retry_after_seconds)}
         )
     
-    # Record this request
+    # Record this request BEFORE calling the endpoint
     client_requests[client_id].append(current_time)
     
     # Continue to the actual endpoint
     response = await call_next(request)
+    
+    # Add rate limit info to response headers
+    remaining = RATE_LIMIT_REQUESTS - len(client_requests[client_id])
+    response.headers["X-RateLimit-Limit"] = str(RATE_LIMIT_REQUESTS)
+    response.headers["X-RateLimit-Remaining"] = str(max(0, remaining))
+    response.headers["X-RateLimit-Window"] = str(RATE_LIMIT_WINDOW_SECONDS)
+    
     return response
 
 
