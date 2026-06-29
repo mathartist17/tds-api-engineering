@@ -149,7 +149,7 @@ async def rate_limit_middleware(request: Request, call_next):
         bucket.popleft()
     
     # Check if at limit
-    if len(bucket) > RATE_LIMIT_REQUESTS:
+    if len(bucket) >= RATE_LIMIT_REQUESTS:
         oldest = bucket[0]
         retry_after = int(RATE_LIMIT_WINDOW_SECONDS - (now - oldest)) + 1
         retry_after = max(1, retry_after)
